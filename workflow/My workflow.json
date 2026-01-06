@@ -1,0 +1,977 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -192,
+        -16
+      ],
+      "id": "eddb0cd9-9681-4871-b533-209ee9c7b974",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appM8JpRNkpjZB2rT",
+          "mode": "list",
+          "cachedResultName": "Trips base",
+          "cachedResultUrl": "https://airtable.com/appM8JpRNkpjZB2rT"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblzyn7eK7MM61fdL",
+          "mode": "list",
+          "cachedResultName": "Requests",
+          "cachedResultUrl": "https://airtable.com/appM8JpRNkpjZB2rT/tblzyn7eK7MM61fdL"
+        },
+        "filterByFormula": "OR({status}='New',{status}='Regenerate')",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        64,
+        -16
+      ],
+      "id": "3fd7f5f9-1b7c-4c7e-84d1-1664b60865a7",
+      "name": "Search records",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "HZyMTHCourJVFReY",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.unsplash.com/search/photos",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $json.destination }}"
+            },
+            {
+              "name": "per_page",
+              "value": "3"
+            },
+            {
+              "name": "orientation",
+              "value": "landscape"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Client-ID UNSPLASH_API_KEY_REQUIRED"
+            },
+            {
+              "name": "Accept-Version",
+              "value": "v1"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        304,
+        96
+      ],
+      "id": "eee3459d-ab6f-43bb-b18e-dc15dfc6ae8f",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $json.results || [];\nif (results.length < 3) {\n  throw new Error(\"Unsplash returned less than 3 results\");\n}\n\n// לוקחים URL ישיר מ-images.unsplash.com (לא source.unsplash.com)\nconst img1 = results[0].urls.regular;\nconst img2 = results[1].urls.regular;\nconst img3 = results[2].urls.regular;\n\n// אופציונלי: קרדיט (מומלץ)\nconst credit1 = results[0].links.html;\nconst credit2 = results[1].links.html;\nconst credit3 = results[2].links.html;\n\nreturn [{\n  json: { img1, img2, img3, credit1, credit2, credit3 }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        528,
+        96
+      ],
+      "id": "80472b47-ee05-447c-b4c5-de8bc5fb48be",
+      "name": "Pick 3 Images"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_GROQ_API_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.1-8b-instant\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Return ONLY a complete HTML document (no markdown, no backticks). Do not wrap the HTML in quotes. Must include a <style> block with modern CSS.\\n\\nDesign requirements:\\n- Hero should be full width with a nice gradient background, height 220-280px (NOT full screen)\\n- Title and subtitle must be stacked (not side-by-side)\\n- Cards grid responsive: 1 column mobile, 2 tablet, 3 desktop\\n- Card images should look good and not be cut too aggressively: use object-fit: cover; height: 220px; border-radius\\n- Map must be full width (100%), centered, height 520px, rounded corners, shadow\\n- 'More attractions' section must be styled as nice boxes/cards (NO images there)\\n- Avoid overlaps: use proper spacing, max-width container, and responsive CSS\\n\\nUse ONLY image URLs in this exact format:\\nhttps://source.unsplash.com/1200x800/?DESTINATION,KEYWORD\\n(NO spaces, use commas)\\n\\nMap iframe must use:\\nhttps://www.google.com/maps?q=DESTINATION&output=embed\\n\\nIMPORTANT:\\nAt the VERY END of the HTML, add this comment block exactly:\\n\\n<!-- IMAGE_KEYS\\ncard1: <keyword>\\ncard2: <keyword>\\ncard3: <keyword>\\n-->\\n\\nOutput must start with <!DOCTYPE html> and end with </html>.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Create a modern, impressive travel HTML page for: {{ $json.destination }}.\\n\\nMust include:\\n1) Hero section with title + short intro.\\n2) 3 attraction cards. Each card: real attraction name for the destination, short recommendation, and an image.\\n3) Images MUST use this exact format (NO spaces, use commas):\\n   https://source.unsplash.com/1200x800/?{{ $json.destination }},KEYWORD\\n   Use 3 different KEYWORDs relevant to the attraction text.\\n4) A Map section with an embedded Google Maps iframe using:\\n   https://www.google.com/maps?q={{ $json.destination }}&output=embed\\n   The map must be full width and centered.\\n5) A 'More Attractions' section with 5 items. Each item must be inside a styled box/card and include a short description. NO images here.\\n6) Footer.\\n\\nRules:\\n- The image KEYWORD must clearly match the attraction name.\\n- Do NOT use images.unsplash.com.\\n- Add loading=\\\"lazy\\\" to all images.\\n- Output only HTML.\"\n    }\n  ],\n  \"temperature\": 0.7\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        304,
+        -144
+      ],
+      "id": "e5e4fac3-4065-4edd-8994-878e75ad70a4",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fe988784-ba20-4a85-a16c-6e93ea82d7f6",
+              "name": "html",
+              "value": "={{ $json.choices[0].message.content }}",
+              "type": "string"
+            },
+            {
+              "id": "8d24cc8d-9e2d-4eb0-b370-4116023865c0",
+              "name": "clean_html",
+              "value": "={{$node[\"HTTP Request\"].json[\"choices\"][0][\"message\"][\"content\"]   .replace(/^[\\s\\S]*?<!DOCTYPE html>/, '<!DOCTYPE html>')}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        512,
+        -144
+      ],
+      "id": "c9a05e1d-2a55-4a78-993c-c5e93f5c5b19",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        832,
+        -16
+      ],
+      "id": "ca5189de-7d11-449e-a85c-1667db44764d",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "let html = $json.html || \"\";\n\nconst { img1, img2, img3 } = $json;\n\n// מחליף את כל תגיות <img> לפי הסדר\nconst imgs = [img1, img2, img3];\nlet index = 0;\n\nhtml = html.replace(/<img[^>]*>/g, (tag) => {\n  if (imgs[index]) {\n    const updated = tag.replace(/src=\"[^\"]*\"/, `src=\"${imgs[index]}\"`);\n    index++;\n    return updated;\n  }\n  return tag;\n});\n\n// מוסיף הגנות\nhtml = html.replace(/<img\\b(?![^>]*referrerpolicy=)/gi, '<img referrerpolicy=\"no-referrer\" ');\nhtml = html.replace(/<img\\b(?![^>]*loading=)/gi, '<img loading=\"lazy\" ');\n\nreturn [{ json: { html } }];\n\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        -16
+      ],
+      "id": "34b4522c-be2c-4bb2-a944-56ace26a2eb7",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "owner": {
+          "__rl": true,
+          "value": "ItamarHadad1",
+          "mode": "list",
+          "cachedResultName": "ItamarHadad1",
+          "cachedResultUrl": "https://github.com/ItamarHadad1"
+        },
+        "repository": {
+          "__rl": true,
+          "value": "ai-travel-pages",
+          "mode": "list",
+          "cachedResultName": "ai-travel-pages",
+          "cachedResultUrl": "https://github.com/ItamarHadad1/ai-travel-pages"
+        },
+        "filePath": "={{ $('Search records').item.json.destination }}-{{ $('Search records').item.json.id }}.html",
+        "fileContent": "={{$node[\"Code in JavaScript\"].json.html}}",
+        "commitMessage": "=Add page for {{ $('Search records').item.json.destination }}"
+      },
+      "type": "n8n-nodes-base.github",
+      "typeVersion": 1.1,
+      "position": [
+        1248,
+        -16
+      ],
+      "id": "9668b067-ca84-4318-845b-df3f0ee4c7cc",
+      "name": "Create a file",
+      "webhookId": "6f695b9c-9996-4868-a9b6-5b9ba05ddcc1",
+      "credentials": {
+        "githubApi": {
+          "id": "T8zHfE89FKDdEYMj",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appM8JpRNkpjZB2rT",
+          "mode": "list",
+          "cachedResultName": "Trips base",
+          "cachedResultUrl": "https://airtable.com/appM8JpRNkpjZB2rT"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblzyn7eK7MM61fdL",
+          "mode": "list",
+          "cachedResultName": "Requests",
+          "cachedResultUrl": "https://airtable.com/appM8JpRNkpjZB2rT/tblzyn7eK7MM61fdL"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('Search records').item.json.id }}",
+            "status": "Waiting Approve",
+            "page_url": "=https://itamarhadad1.github.io/ai-travel-pages/{{$node[\"Create a file\"].json[\"content\"][\"name\"]}}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "destination",
+              "displayName": "destination",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "New",
+                  "value": "New"
+                },
+                {
+                  "name": "Approved",
+                  "value": "Approved"
+                },
+                {
+                  "name": "Rejected",
+                  "value": "Rejected"
+                },
+                {
+                  "name": "Waiting Approve",
+                  "value": "Waiting Approve"
+                },
+                {
+                  "name": "Regenerate",
+                  "value": "Regenerate"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "page_url",
+              "displayName": "page_url",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "review_notes",
+              "displayName": "review_notes",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1456,
+        -16
+      ],
+      "id": "1a8d984c-456c-4f46-a311-14ca48b04937",
+      "name": "Update record",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "HZyMTHCourJVFReY",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.fields.email }}",
+        "subject": "Your travel guide is ready for approval ✈️",
+        "message": "=<h2>Your travel page is ready ✅</h2>\n\n<p>\n<a href=\"{{ $json.fields.page_url }}\" target=\"_blank\">\n🔗 View the full travel page\n</a>\n</p>\n\n<hr/>\n\n<p>Please choose an option:</p>\n\n<a href=\"https://itamarhadad100.app.n8n.cloud/webhook/travel-approval?action=approve&rid={{ $json.id }}\"\n   style=\"display:inline-block;background:#2e7d32;color:white;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:bold;margin-right:10px;\">\n✅ Approve\n</a>\n\n<a href=\"https://itamarhadad100.app.n8n.cloud/webhook/travel-approval?action=reject&rid={{ $json.id }}\"\n   style=\"display:inline-block;background:#c62828;color:white;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:bold;\">\n❌ Reject\n</a>\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1664,
+        -16
+      ],
+      "id": "438b57a3-3f86-4a8c-808e-a7349f4c5d75",
+      "name": "Send a message",
+      "webhookId": "57735daf-58d0-45fd-bb97-df743161b9a1",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "lAInF8a8V38qqAYc",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "path": "travel-approval",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        1440,
+        208
+      ],
+      "id": "39a3c9ac-e035-4e36-b252-b98d1c2f191f",
+      "name": "Webhook",
+      "webhookId": "cf7be1c9-c7a5-4062-9e7f-5330276ddd2b"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "0b3f6597-7d5f-4b16-b6f5-84bc41a77d74",
+              "leftValue": "={{ $json.query.action }}",
+              "rightValue": "approve",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1632,
+        208
+      ],
+      "id": "b9fea926-b2a6-4054-a230-ee19c73f3bb0",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "<h3>Approved ✅</h3>\n<p>Thanks! You can close this tab.</p>\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1936,
+        288
+      ],
+      "id": "f642ebec-ed1f-4277-a403-646b6dc32916",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appM8JpRNkpjZB2rT",
+          "mode": "list",
+          "cachedResultName": "Trips base",
+          "cachedResultUrl": "https://airtable.com/appM8JpRNkpjZB2rT"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblzyn7eK7MM61fdL",
+          "mode": "list",
+          "cachedResultName": "Requests",
+          "cachedResultUrl": "https://airtable.com/appM8JpRNkpjZB2rT/tblzyn7eK7MM61fdL"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "Approved",
+            "id": "={{ $json.query.rid }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "destination",
+              "displayName": "destination",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "New",
+                  "value": "New"
+                },
+                {
+                  "name": "Approved",
+                  "value": "Approved"
+                },
+                {
+                  "name": "Rejected",
+                  "value": "Rejected"
+                },
+                {
+                  "name": "Waiting Approve",
+                  "value": "Waiting Approve"
+                },
+                {
+                  "name": "Regenerate",
+                  "value": "Regenerate"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "page_url",
+              "displayName": "page_url",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "review_notes",
+              "displayName": "review_notes",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1936,
+        112
+      ],
+      "id": "58daae66-ed8a-4be0-8c57-cb16553d790b",
+      "name": "Update Approved",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "HZyMTHCourJVFReY",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "=<h2>Reject travel page ❌</h2>\n<p>You can add notes (optional) and submit.</p>\n\n<form method=\"POST\" action=\"https://itamarhadad100.app.n8n.cloud/webhook/travel-reject-submit\">\n  <input type=\"hidden\" name=\"rid\" value=\"{{ $json.query.rid }}\" />\n\n  <textarea name=\"notes\" rows=\"6\"\n    style=\"width:100%;max-width:600px;\"\n    placeholder=\"Optional notes...\"></textarea>\n\n  <br/><br/>\n\n  <button type=\"submit\" style=\"padding:10px 16px;\">\n    Submit rejection\n  </button>\n</form>\n\n<hr/>\n\n<p>If you leave notes empty, it will be rejected without notes.</p>\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1792,
+        512
+      ],
+      "id": "53dd7910-cd25-4fe7-ad56-f2da44dbf57f",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "travel-reject-submit",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        1456,
+        688
+      ],
+      "id": "3b4c4586-8a44-4a4f-a785-11e84d2536fc",
+      "name": "Reject Submit Webhoo",
+      "webhookId": "58c35a40-3e6a-4456-a96b-2384c0c1d4c2"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appM8JpRNkpjZB2rT",
+          "mode": "list",
+          "cachedResultName": "Trips base",
+          "cachedResultUrl": "https://airtable.com/appM8JpRNkpjZB2rT"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblzyn7eK7MM61fdL",
+          "mode": "list",
+          "cachedResultName": "Requests",
+          "cachedResultUrl": "https://airtable.com/appM8JpRNkpjZB2rT/tblzyn7eK7MM61fdL"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $json.body.rid }}",
+            "status": "Regenerate",
+            "review_notes": "={{ $json.body.notes }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "destination",
+              "displayName": "destination",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "New",
+                  "value": "New"
+                },
+                {
+                  "name": "Approved",
+                  "value": "Approved"
+                },
+                {
+                  "name": "Rejected",
+                  "value": "Rejected"
+                },
+                {
+                  "name": "Waiting Approve",
+                  "value": "Waiting Approve"
+                },
+                {
+                  "name": "Regenerate",
+                  "value": "Regenerate"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "page_url",
+              "displayName": "page_url",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "review_notes",
+              "displayName": "review_notes",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1664,
+        688
+      ],
+      "id": "91cd4888-36bd-4aea-bcd4-d23f70612e52",
+      "name": "Update record1",
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "HZyMTHCourJVFReY",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "<h3>Rejected ✅</h3>\n<p>Thanks! A new page will be generated shortly.</p>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1872,
+        688
+      ],
+      "id": "c2d4d393-9dd4-4caa-a485-48e89d753c3f",
+      "name": "Reject Submit Webhook"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Search records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search records": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Pick 3 Images",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick 3 Images": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Create a file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a file": {
+      "main": [
+        [
+          {
+            "node": "Update record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update record": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Update Approved",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Approved": {
+      "main": [
+        []
+      ]
+    },
+    "Respond to Webhook1": {
+      "main": [
+        []
+      ]
+    },
+    "Reject Submit Webhoo": {
+      "main": [
+        [
+          {
+            "node": "Update record1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update record1": {
+      "main": [
+        [
+          {
+            "node": "Reject Submit Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "88c1eaa7-f2b4-4bb5-bd9d-41947d724d24",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e5d84de4f18a219b75a1dacb0aa5fc75dd9cf08e3e077ae19139d362435dbb64"
+  },
+  "id": "EK4MYJtwfGPqspdf",
+  "tags": []
+}

@@ -1,0 +1,11 @@
+Public n8n Workflow (Read-Only)
+
+This link shows the full automation workflow in n8n.
+You can view all nodes, logic and connections.
+
+Workflow URL:
+https://itamarhadad100.app.n8n.cloud/workflow/EK4MYJtwfGPqspdf
+
+Notes:
+- This workflow is view only
+- Credentials and API keys are not included

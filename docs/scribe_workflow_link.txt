@@ -1,0 +1,7 @@
+Workflow Documentation (Scribe)
+
+This document provides a visual, step by step overview
+of the n8n automation workflow.
+
+Scribe URL:
+https://scribehow.com/viewer/Workflow_Overview_Automating_HTML_Page_Creation_with_n8n_and_Airtable__C3kuWMlmTBWUWOFvuUaemA
